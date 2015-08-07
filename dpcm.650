@@ -1,0 +1,99 @@
+;DPCM Channel Test
+;By Pokun
+;Assembles in ASM6
+;NROM
+;-------------------------------------------------------------------------------
+;Variables
+  .enum $0000 ;Zero Page
+  temp .dsb 1
+  .ende
+;-------------------------------------------------------------------------------
+;iNES Header:
+  .db "NES", $1A
+  .db 1
+  .db $01
+  .db $00|%0001
+  .dsb 9, $00
+;-------------------------------------------------------------------------------
+;PRG ROM Start:
+  .org $C000
+;-------------------------------------------------------------------------------
+NMI:
+  rti
+;-------------------------------------------------------------------------------
+RESET:
+  ;Basic init code
+  sei
+  cld
+  ldx #$40
+  stx $4017
+  ldx #$FF
+  txs
+  inx
+  stx $2000
+  stx $2001
+  stx $4010
+;-------------------------------------------
+;Play sample
+  ldx #$00 ;load sample number into X
+  ldy #$0F ;load pitch ($00-$0F) into Y
+  lda #$40 ;load starting level ($00-$7F) into a temp variable
+  sta temp
+  jsr dpcm_play ;play sample
+
+Main:
+  jmp Main
+;-------------------------------------------------------------------------------
+IRQ:
+  rti
+;-------------------------------------------------------------------------------
+;Subroutines: 
+dpcm_play:
+
+; Plays a DPCM sample
+  lda #$0F
+  sta $4015 ;DPCM disable
+  sty $4010 ;Y = pitch
+  lda temp
+  sta $4011 ;temp = starting sample level
+  lda SampleStart,X
+  sta $4012 ;X = sample number
+  lda SampleLength,X
+  sta $4013
+  lda #$1F ;DPCM enable (plays sample)
+  sta $4015
+  rts
+;-------------------------------------------------------------------------------
+;Samples:
+;Samples must be placed within $C000-$DFFF
+  .align 64 ;makes sure that each sample begins on a 64-byte boundary,
+            ;as is required by $4012. In NESASM use ".ds (64-*)&63".
+sample0:
+  .incbin "vyu.dmc"
+  .align 64
+sample0_end:
+  .align 64
+sample1:
+  .incbin "orchhit.dmc"
+  .align 64
+sample1_end:
+  ;etc
+
+SampleStart: ;sample start addresses LUT
+  .db <(sample0 >> 6)
+  .db <(sample1 >> 6)
+
+SampleLength: ;sample lengths LUT
+  .db <((sample0_end - sample0) >> 4)
+  .db <((sample1_end - sample1) >> 4)
+  ;etc
+;-------------------------------------------------------------------------------
+;Interrupt Vector Table:
+  .org $FFFA
+  .dw NMI
+  .dw RESET
+  .dw IRQ
+;-------------------------------------------------------------------------------
+;CHR ROM Start:
+  .dsb 8192, $00 ;no graphics
+;-------------------------------------------------------------------------------
